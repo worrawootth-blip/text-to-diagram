@@ -1,0 +1,325 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>แปลงข้อความเป็นแผนภาพ</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{--ink:#1B2433;--mut:#5F6B7E;--line:#D5DAE3;--bg:#EDF0F5;--card:#fff;--pri:#4F46E5;--pri-d:#3B33C4;--danger:#C2334D}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:"IBM Plex Sans Thai","Noto Sans Thai",system-ui,sans-serif;line-height:1.55}
+.wrap{max-width:1360px;margin:0 auto;padding:28px 20px 40px}
+h1{font-size:28px;margin:0 0 4px;font-weight:700;letter-spacing:-.01em}
+.sub{margin:0 0 22px;color:var(--mut)}
+.grid{display:grid;gap:20px;grid-template-columns:1fr}
+@media(min-width:1000px){.grid{grid-template-columns:minmax(360px,5fr) 7fr;align-items:start}}
+.panel{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:18px;min-width:0}
+.label{display:flex;justify-content:space-between;align-items:center;font-weight:600;margin-bottom:8px}
+.link{background:none;border:0;color:var(--pri);font:inherit;font-size:14px;cursor:pointer;padding:2px 4px}
+.link:hover{text-decoration:underline}
+textarea{width:100%;min-height:340px;height:48vh;resize:vertical;border:1.5px solid var(--line);border-radius:10px;padding:14px;font:inherit;font-size:16px;line-height:1.6;color:var(--ink);background:#FAFBFD}
+textarea:focus{outline:3px solid #4F46E533;border-color:var(--pri);background:#fff}
+.hint{font-size:13px;color:var(--mut);margin:8px 0 18px}
+.types{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin-bottom:18px}
+.type{display:flex;flex-direction:column;align-items:center;gap:6px;padding:10px 4px;border:1.5px solid var(--line);border-radius:10px;background:#fff;color:var(--ink);font:inherit;font-size:13px;cursor:pointer;transition:border-color .15s,background .15s}
+.type svg{width:30px;height:30px;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.type:hover{border-color:#9AA3F5}
+.type[aria-pressed="true"]{border-color:var(--pri);background:#EEF0FF;color:var(--pri-d);font-weight:600}
+.actions{display:flex;flex-wrap:wrap;gap:10px}
+.btn{font:inherit;font-weight:600;font-size:16px;border-radius:10px;padding:11px 20px;cursor:pointer;border:1.5px solid var(--line);background:#fff;color:var(--ink)}
+.btn.main{background:var(--pri);border-color:var(--pri);color:#fff;flex:1 1 100%}
+.btn.main:hover{background:var(--pri-d)}
+.btn:hover:not(.main):not(:disabled){border-color:var(--ink)}
+.btn.reset{color:var(--danger)}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+.btn:focus-visible,.type:focus-visible,.link:focus-visible{outline:3px solid #4F46E566;outline-offset:2px}
+.out{min-height:420px;display:flex;flex-direction:column}
+.stage{flex:1;overflow:auto;border:1.5px dashed var(--line);border-radius:10px;background:#fff;display:flex;align-items:flex-start;justify-content:center;min-height:380px}
+.stage.has{border-style:solid}
+.empty{margin:auto;color:var(--mut);text-align:center;padding:30px;max-width:320px}
+canvas{display:none;max-width:100%;height:auto;cursor:zoom-in}
+canvas.actual{max-width:none;cursor:zoom-out}
+.stage.has canvas{display:block}.stage.has .empty{display:none}
+#msg{min-height:22px;font-size:14px;color:var(--mut);margin-top:10px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>แปลงข้อความเป็นแผนภาพ</h1>
+  <p class="sub">พิมพ์หรือวางข้อความ เลือกรูปแบบ แล้วกดประมวลผล</p>
+  <div class="grid">
+    <section class="panel">
+      <div class="label"><label for="txt">ข้อความ</label><button class="link" id="sample" type="button">ใส่ข้อความตัวอย่าง</button></div>
+      <textarea id="txt" spellcheck="false" placeholder="บรรทัดแรกคือหัวข้อหลัก&#10;หนึ่งบรรทัดต่อหนึ่งหัวข้อ&#10;  เว้นวรรคหน้าบรรทัดเพื่อสร้างหัวข้อย่อย"></textarea>
+      <p class="hint">หนึ่งบรรทัดคือหนึ่งกล่อง เว้นวรรคหรือกด Tab หน้าบรรทัดเพื่อสร้างระดับย่อย ถ้าพิมพ์เป็นย่อหน้าเดียว ระบบจะแยกตามประโยคให้</p>
+      <div class="types" role="group" aria-label="รูปแบบแผนภาพ">
+        <button class="type" data-s="mind" aria-pressed="true" type="button"><svg viewBox="0 0 32 32"><circle cx="16" cy="16" r="4"/><circle cx="5" cy="7" r="2.5"/><circle cx="27" cy="7" r="2.5"/><circle cx="5" cy="25" r="2.5"/><circle cx="27" cy="25" r="2.5"/><path d="M12.5 13.5 7 8.5M19.5 13.5 25 8.5M12.5 18.5 7 23.5M19.5 18.5 25 23.5"/></svg>Mind map</button>
+        <button class="type" data-s="org" aria-pressed="false" type="button"><svg viewBox="0 0 32 32"><rect x="11" y="3" width="10" height="7" rx="2"/><rect x="2" y="22" width="10" height="7" rx="2"/><rect x="20" y="22" width="10" height="7" rx="2"/><path d="M16 10v6M7 22v-6h18v6"/></svg>ผังต้นไม้</button>
+        <button class="type" data-s="flow" aria-pressed="false" type="button"><svg viewBox="0 0 32 32"><rect x="9" y="2" width="14" height="6" rx="3"/><rect x="9" y="13" width="14" height="6" rx="2"/><rect x="9" y="24" width="14" height="6" rx="3"/><path d="M16 8v5M16 19v5"/></svg>Flowchart</button>
+        <button class="type" data-s="time" aria-pressed="false" type="button"><svg viewBox="0 0 32 32"><path d="M2 16h28"/><circle cx="8" cy="16" r="2"/><circle cx="16" cy="16" r="2"/><circle cx="24" cy="16" r="2"/><path d="M8 14V7M16 18v7M24 14V7"/></svg>ไทม์ไลน์</button>
+        <button class="type" data-s="cycle" aria-pressed="false" type="button"><svg viewBox="0 0 32 32"><path d="M26 11A11 11 0 0 0 7 9M6 21a11 11 0 0 0 19 2"/><path d="M26 4v7h-7M6 28v-7h7"/></svg>วงจร</button>
+      </div>
+      <div class="actions">
+        <button class="btn main" id="go" type="button">ประมวลผล</button>
+        <button class="btn" id="save" type="button" disabled>บันทึกเป็น PNG</button>
+        <button class="btn reset" id="reset" type="button">รีเซ็ต</button>
+      </div>
+    </section>
+    <section class="panel out">
+      <div class="label">แผนภาพ<span style="font-weight:400;font-size:13px;color:var(--mut)">คลิกที่แผนภาพเพื่อสลับขนาดจริง</span></div>
+      <div class="stage" id="stage">
+        <div class="empty">ยังไม่มีแผนภาพ ใส่ข้อความทางซ้ายแล้วกดประมวลผล</div>
+        <canvas id="cv" aria-label="แผนภาพที่สร้างจากข้อความ"></canvas>
+      </div>
+      <div id="msg" role="status"></div>
+    </section>
+  </div>
+</div>
+
+<script>
+const $=id=>document.getElementById(id);
+const ta=$('txt'),cv=$('cv'),ctx=cv.getContext('2d'),stage=$('stage'),msg=$('msg');
+const FONT='"IBM Plex Sans Thai","Noto Sans Thai",sans-serif';
+const PAL=['#4F46E5','#0F9D8A','#E4572E','#D99A00','#C026D3','#2B7BD6','#3F9B0B','#D6336C'];
+const INK='#1B2433',VG=14,HG=64,HG2=22;
+const NAMES={mind:'mindmap',org:'tree',flow:'flowchart',time:'timeline',cycle:'cycle'};
+let style='mind',rendered=false;
+
+/* ---------- วัดและตัดคำ ---------- */
+const mctx=document.createElement('canvas').getContext('2d');
+const seg=(window.Intl&&Intl.Segmenter)?new Intl.Segmenter('th',{granularity:'word'}):null;
+function tokens(t){return seg?[...seg.segment(t)].map(s=>s.segment):t.split(/(\s+)/)}
+function wrap(text,maxW,font){
+  mctx.font=font;const out=[];let line='';
+  for(const tk of tokens(text)){
+    const test=line+tk;
+    if(line&&mctx.measureText(test).width>maxW){out.push(line.trim());line=tk.trimStart()}else line=test;
+  }
+  if(line.trim())out.push(line.trim());
+  return out.length?out:[text];
+}
+function mk(text,o){
+  const wt=o.wt||500,fs=o.fs||16,font=`${wt} ${fs}px ${FONT}`;
+  const lines=wrap(text,o.maxW||220,font);mctx.font=font;
+  const lh=fs*1.5,tw=Math.max(...lines.map(l=>mctx.measureText(l).width));
+  return Object.assign({shape:'rect',x:0,y:0,wt,fs,lh,lines,tc:INK,w:Math.max(56,tw+2*(o.px||14)),h:lines.length*lh+2*(o.py||8)},o);
+}
+
+/* ---------- แปลงข้อความเป็นรายการ ---------- */
+function parse(raw){
+  let items=raw.split(/\r?\n/).filter(l=>l.trim()).map(l=>{
+    const ind=l.match(/^[\t ]*/)[0].replace(/\t/g,'    ').length;
+    const t=l.trim().replace(/^([-*•·▪●○◦>]+|\d+[.)]|[๐-๙]+[.)])\s*/,'');
+    return{text:t,ind};
+  }).filter(i=>i.text);
+  if(items.length===1){
+    const parts=items[0].text.split(/(?<=[.!?。])\s+|[;；]|\s{2,}/).map(s=>s.trim()).filter(Boolean);
+    items=parts.map(t=>({text:t,ind:0}));
+  }
+  const inds=[...new Set(items.map(i=>i.ind))].sort((a,b)=>a-b);
+  items.forEach(i=>i.level=inds.indexOf(i.ind));
+  return items;
+}
+function buildTree(items){
+  const roots=[],st=[];
+  items.forEach(it=>{
+    const n={text:it.text,level:it.level,children:[]};
+    while(st.length&&st[st.length-1].level>=n.level)st.pop();
+    (st.length?st[st.length-1].children:roots).push(n);st.push(n);
+  });
+  const r=roots[0];if(roots.length>1)r.children.push(...roots.slice(1));
+  return r;
+}
+function tnode(txt,d,col){
+  if(d===0)return mk(txt,{maxW:240,fs:20,wt:700,px:24,py:14,fill:INK,tc:'#fff',shape:'pill',shadow:1});
+  if(d===1)return mk(txt,{maxW:200,fs:16,wt:600,px:16,py:10,fill:col,tc:'#fff',shadow:1});
+  return mk(txt,{maxW:200,fs:14,wt:500,px:12,py:7,fill:col+'1F',stroke:col});
+}
+function prep(n,d,col){
+  n.depth=d;n.col=col;n.node=tnode(n.text,d,col);
+  n.children.forEach((c,i)=>prep(c,d+1,d===0?PAL[i%PAL.length]:col));
+}
+
+/* ---------- เลย์เอาต์ ---------- */
+function calcH(n){n.H=Math.max(n.node.h,n.children.reduce((s,c)=>s+calcH(c),0)+Math.max(0,n.children.length-1)*VG);return n.H}
+function placeH(n,edgeX,top,dir,out){
+  const nd=n.node;nd.x=edgeX+dir*nd.w/2;nd.y=top+n.H/2;out.nodes.push(nd);
+  const ch=n.children.reduce((s,c)=>s+c.H,0)+Math.max(0,n.children.length-1)*VG;
+  let t=top+(n.H-ch)/2;
+  n.children.forEach(c=>{
+    placeH(c,edgeX+dir*(nd.w+HG),t,dir,out);
+    out.edges.push({x1:nd.x+dir*nd.w/2,y1:nd.y,x2:c.node.x-dir*c.node.w/2,y2:c.node.y,type:'h',color:c.col,w:Math.max(1.6,3.2-c.depth*.6)});
+    t+=c.H+VG;
+  });
+}
+function mindmap(items){
+  const root=buildTree(items);prep(root,0,INK);calcH(root);
+  const out={nodes:[root.node],edges:[]},L=[],R=[];let sl=0,sr=0;
+  root.children.forEach(c=>{if(sr<=sl){R.push(c);sr+=c.H}else{L.push(c);sl+=c.H}});
+  [[R,1],[L,-1]].forEach(([arr,dir])=>{
+    const tot=arr.reduce((s,c)=>s+c.H,0)+Math.max(0,arr.length-1)*VG;let t=-tot/2;
+    arr.forEach(c=>{
+      placeH(c,dir*(root.node.w/2+HG),t,dir,out);
+      out.edges.push({x1:dir*root.node.w/2,y1:0,x2:c.node.x-dir*c.node.w/2,y2:c.node.y,type:'h',color:c.col,w:3.4});
+      t+=c.H+VG;
+    });
+  });
+  return out;
+}
+function calcW(n){n.W=Math.max(n.node.w,n.children.reduce((s,c)=>s+calcW(c),0)+Math.max(0,n.children.length-1)*HG2);return n.W}
+function orgtree(items){
+  const root=buildTree(items);prep(root,0,INK);calcW(root);
+  const all=[];(function w(n){all.push(n);n.children.forEach(w)})(root);
+  const dh=[];all.forEach(n=>dh[n.depth]=Math.max(dh[n.depth]||0,n.node.h));
+  const ys=[];let y=0;dh.forEach((h,d)=>{ys[d]=y+h/2;y+=h+64});
+  const out={nodes:[],edges:[]};
+  (function p(n,left){
+    const nd=n.node;nd.x=left+n.W/2;nd.y=ys[n.depth];out.nodes.push(nd);
+    const ch=n.children.reduce((s,c)=>s+c.W,0)+Math.max(0,n.children.length-1)*HG2;
+    let l=left+(n.W-ch)/2;
+    n.children.forEach(c=>{
+      p(c,l);
+      out.edges.push({x1:nd.x,y1:nd.y+nd.h/2,x2:c.node.x,y2:c.node.y-c.node.h/2,type:'v',color:c.col,w:2.2});
+      l+=c.W+HG2;
+    });
+  })(root,0);
+  return out;
+}
+function flow(items){
+  const out={nodes:[],edges:[]};let y=0,prev=null;
+  items.forEach((it,i)=>{
+    const first=i===0,last=i===items.length-1&&items.length>1,q=/[?？]\s*$/.test(it.text);
+    let n;
+    if(first||last)n=mk(it.text,{maxW:260,fs:16,wt:600,px:26,py:11,fill:first?'#0F9D8A':'#D6336C',tc:'#fff',shape:'pill',shadow:1});
+    else if(q){n=mk(it.text,{maxW:200,fs:15,wt:600,px:10,py:8,fill:'#F5B82E',tc:INK,shape:'diamond',shadow:1});n.w*=1.6;n.h*=2}
+    else n=mk(it.text,{maxW:280,fs:16,wt:500,px:18,py:11,fill:'#4F46E5',tc:'#fff',shadow:1});
+    n.x=0;n.y=y+n.h/2;y+=n.h+(prev?0:0)+50;out.nodes.push(n);
+    if(prev)out.edges.push({x1:0,y1:prev.y+prev.h/2,x2:0,y2:n.y-n.h/2,type:'l',color:'#7C86A0',w:2.4,arrow:1});
+    prev=n;
+  });
+  return out;
+}
+function timeline(items){
+  const cards=items.map((it,i)=>{const c=PAL[i%PAL.length];return mk(it.text,{maxW:200,fs:15,wt:500,px:14,py:10,fill:c+'1F',stroke:c,col:c})});
+  const mw=Math.max(...cards.map(c=>c.w)),sp=mw/2+36,out={nodes:[],edges:[]},dots=[];
+  out.edges.push({x1:-44,y1:0,x2:(cards.length-1)*sp+56,y2:0,type:'l',color:'#C3CAD8',w:5,arrow:1});
+  cards.forEach((c,i)=>{
+    const up=i%2===0;c.x=i*sp;c.y=up?-(52+c.h/2):52+c.h/2;out.nodes.push(c);
+    out.edges.push({x1:c.x,y1:0,x2:c.x,y2:up?c.y+c.h/2:c.y-c.h/2,type:'l',color:c.col,w:2});
+    dots.push(mk(String(i+1),{maxW:60,fs:14,wt:700,px:0,py:0,w:32,h:32,fill:c.col,tc:'#fff',shape:'circle',x:c.x,y:0,noSize:1}));
+  });
+  dots.forEach(d=>{d.w=32;d.h=32;out.nodes.push(d)});
+  return out;
+}
+function clip(n,dx,dy){
+  const t=Math.min(dx?(n.w/2)/Math.abs(dx):1e9,dy?(n.h/2)/Math.abs(dy):1e9);return[dx*t,dy*t];
+}
+function cycle(items){
+  const N=items.length;
+  const nodes=items.map((it,i)=>mk(it.text,{maxW:190,fs:15,wt:600,px:16,py:10,fill:PAL[i%PAL.length],tc:'#fff',shadow:1}));
+  const mw=Math.max(...nodes.map(n=>n.w)),mh=Math.max(...nodes.map(n=>n.h));
+  const R=N===1?0:Math.max(170,N*(Math.max(mw,mh*1.6)+34)/(2*Math.PI));
+  nodes.forEach((n,i)=>{const a=-Math.PI/2+i*2*Math.PI/N;n.x=R*Math.cos(a)*1.15;n.y=R*Math.sin(a)})
+  const out={nodes,edges:[]},E=N>2?N:N-1;
+  for(let i=0;i<E;i++){
+    const a=nodes[i],b=nodes[(i+1)%N],dx=b.x-a.x,dy=b.y-a.y,len=Math.hypot(dx,dy)||1;
+    const[ax,ay]=clip(a,dx,dy),[bx,by]=clip(b,-dx,-dy),ux=dx/len,uy=dy/len;
+    out.edges.push({x1:a.x+ax+ux*6,y1:a.y+ay+uy*6,x2:b.x+bx-ux*8,y2:b.y+by-uy*8,type:'l',color:'#7C86A0',w:2.4,arrow:1});
+  }
+  return out;
+}
+const LAYOUT={mind:mindmap,org:orgtree,flow:flow,time:timeline,cycle:cycle};
+
+/* ---------- วาด ---------- */
+function drawNode(n){
+  ctx.save();ctx.beginPath();
+  const x=n.x-n.w/2,y=n.y-n.h/2;
+  if(n.shape==='diamond'){ctx.moveTo(n.x,y);ctx.lineTo(x+n.w,n.y);ctx.lineTo(n.x,y+n.h);ctx.lineTo(x,n.y);ctx.closePath()}
+  else if(n.shape==='circle')ctx.arc(n.x,n.y,n.w/2,0,Math.PI*2);
+  else ctx.roundRect(x,y,n.w,n.h,n.shape==='pill'?n.h/2:10);
+  if(n.shadow){ctx.shadowColor='rgba(27,36,51,.22)';ctx.shadowBlur=12;ctx.shadowOffsetY=4}
+  ctx.fillStyle=n.fill;ctx.fill();ctx.shadowColor='transparent';
+  if(n.stroke){ctx.strokeStyle=n.stroke;ctx.lineWidth=2;ctx.stroke()}
+  ctx.fillStyle=n.tc;ctx.font=`${n.wt} ${n.fs}px ${FONT}`;ctx.textAlign='center';ctx.textBaseline='middle';
+  let ty=n.y-n.lines.length*n.lh/2+n.lh/2;
+  n.lines.forEach(l=>{ctx.fillText(l,n.x,ty+1);ty+=n.lh});
+  ctx.restore();
+}
+function drawEdge(e){
+  ctx.save();ctx.strokeStyle=e.color;ctx.fillStyle=e.color;ctx.lineWidth=e.w||2;ctx.lineCap='round';
+  ctx.beginPath();ctx.moveTo(e.x1,e.y1);
+  if(e.type==='h'){const m=(e.x1+e.x2)/2;ctx.bezierCurveTo(m,e.y1,m,e.y2,e.x2,e.y2)}
+  else if(e.type==='v'){const m=(e.y1+e.y2)/2;ctx.bezierCurveTo(e.x1,m,e.x2,m,e.x2,e.y2)}
+  else ctx.lineTo(e.x2,e.y2);
+  ctx.stroke();
+  if(e.arrow){
+    const a=Math.atan2(e.y2-e.y1,e.x2-e.x1),s=11;
+    ctx.beginPath();ctx.moveTo(e.x2+Math.cos(a)*2,e.y2+Math.sin(a)*2);
+    ctx.lineTo(e.x2-s*Math.cos(a-.42),e.y2-s*Math.sin(a-.42));
+    ctx.lineTo(e.x2-s*Math.cos(a+.42),e.y2-s*Math.sin(a+.42));ctx.closePath();ctx.fill();
+  }
+  ctx.restore();
+}
+function draw(out){
+  let x0=1e9,y0=1e9,x1=-1e9,y1=-1e9;
+  out.nodes.forEach(n=>{x0=Math.min(x0,n.x-n.w/2);x1=Math.max(x1,n.x+n.w/2);y0=Math.min(y0,n.y-n.h/2);y1=Math.max(y1,n.y+n.h/2)});
+  out.edges.forEach(e=>{x0=Math.min(x0,e.x1,e.x2);x1=Math.max(x1,e.x1,e.x2);y0=Math.min(y0,e.y1,e.y2);y1=Math.max(y1,e.y1,e.y2)});
+  const pad=48,W=Math.max(360,x1-x0+2*pad),H=Math.max(220,y1-y0+2*pad);
+  const s=Math.min(2,6000/Math.max(W,H));
+  cv.width=Math.round(W*s);cv.height=Math.round(H*s);cv.style.width=W+'px';
+  ctx.setTransform(s,0,0,s,0,0);
+  ctx.fillStyle='#fff';ctx.fillRect(0,0,W,H);
+  ctx.translate((W-(x1-x0))/2-x0,(H-(y1-y0))/2-y0);
+  out.edges.forEach(drawEdge);out.nodes.forEach(drawNode);
+}
+
+/* ---------- การทำงานของปุ่ม ---------- */
+async function render(){
+  const items=parse(ta.value);
+  if(!items.length){msg.textContent='กรุณาพิมพ์ข้อความก่อนกดประมวลผล';ta.focus();return}
+  try{await document.fonts.load('600 16px "IBM Plex Sans Thai"','ก')}catch(e){}
+  try{
+    draw(LAYOUT[style](items));
+    stage.classList.add('has');cv.classList.remove('actual');rendered=true;$('save').disabled=false;
+    msg.textContent=`สร้างแผนภาพจาก ${items.length} บรรทัดแล้ว`;
+  }catch(err){console.error(err);msg.textContent='สร้างแผนภาพไม่สำเร็จ ลองตรวจสอบข้อความอีกครั้ง'}
+}
+$('go').onclick=render;
+ta.addEventListener('keydown',e=>{if((e.ctrlKey||e.metaKey)&&e.key==='Enter')render()});
+document.querySelectorAll('.type').forEach(b=>b.onclick=()=>{
+  document.querySelectorAll('.type').forEach(x=>x.setAttribute('aria-pressed',x===b));
+  style=b.dataset.s;if(rendered)render();
+});
+cv.onclick=()=>cv.classList.toggle('actual');
+$('save').onclick=()=>{
+  cv.toBlob(b=>{
+    const a=document.createElement('a');a.href=URL.createObjectURL(b);
+    a.download=`diagram-${NAMES[style]}.png`;document.body.appendChild(a);a.click();a.remove();
+    setTimeout(()=>URL.revokeObjectURL(a.href),1000);msg.textContent='บันทึกไฟล์ PNG แล้ว';
+  },'image/png');
+};
+$('reset').onclick=()=>{
+  ta.value='';rendered=false;style='mind';
+  document.querySelectorAll('.type').forEach(x=>x.setAttribute('aria-pressed',x.dataset.s==='mind'));
+  stage.classList.remove('has');ctx.setTransform(1,0,0,1,0,0);ctx.clearRect(0,0,cv.width,cv.height);
+  $('save').disabled=true;msg.textContent='ล้างข้อมูลทั้งหมดแล้ว';ta.focus();
+};
+$('sample').onclick=()=>{
+  ta.value=`เปิดร้านกาแฟ
+  วางแผน
+    วิจัยตลาด
+    กำหนดงบประมาณ
+  เตรียมร้าน
+    เลือกทำเล
+    ตกแต่งร้าน
+  การตลาด
+    โซเชียลมีเดีย
+    โปรโมชันวันเปิดร้าน
+  เปิดให้บริการ`;
+  msg.textContent='ใส่ข้อความตัวอย่างแล้ว กดประมวลผลได้เลย';
+};
+</script>
+</body>
+</html>
